@@ -2,11 +2,12 @@
 pragma solidity 0.8.26;
 
 /**
- * @title KipuBank
+ * @title KipuBankV1
  * @author Martin Ignacio Casas
  * @notice This contract allows users to deposit and withdraw ETH securely
+ * @dev Original version - For V2 with advanced features, see KipuBankV2.sol
  */
-contract KipuBank {
+contract KipuBankV1 {
     /*////////////////////////
             Variables
     ////////////////////////*/
