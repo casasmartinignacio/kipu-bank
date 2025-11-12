@@ -1,401 +1,570 @@
-# KipuBankV2 Smart Contract
+# KipuBankV3 - Banco DeFi con Integración Uniswap V2
 
-## Project Description
+**Aplicación DeFi avanzada** que permite depositar cualquier token soportado por Uniswap V2, el cual es automáticamente intercambiado a USDC y acreditado en balance.
 
-KipuBankV2 is an advanced smart contract that allows users to securely deposit and withdraw both ETH and ERC-20 tokens. This project represents the evolution of KipuBank, developed as the final exam for Module 3 of the Ethereum Developer Pack.
-
-The contract implements multi-token support, Chainlink price feeds for real-time ETH/USD conversion, and role-based access control following the concepts learned in the course.
-
-## Key Improvements from V1
-
-### 1. **Multi-Token Support**
-- Support for native ETH and multiple ERC-20 tokens
-- Uses `address(0)` to represent native ETH
-- Separate deposit/withdraw functions for tokens
-- Nested mapping structure for multi-token accounting
-
-### 2. **Chainlink Oracle Integration**
-- Real-time ETH/USD price feeds via Chainlink Data Feeds
-- Stale price protection with heartbeat validation
-- Oracle compromise detection
-- Functions to view balances and bank cap in USD
-
-### 3. **Access Control**
-- Inherits from OpenZeppelin's `Ownable` contract
-- Owner-only functions for critical operations:
-  - Update bank capacity (in ETH or USD)
-  - Add new supported tokens
-  - Update oracle feed address
-
-### 4. **Security Patterns**
-- **SafeERC20**: Prevents issues with non-standard ERC-20 tokens
-- **Checks-Effects-Interactions**: Prevents reentrancy attacks
-- **Custom Errors**: Gas-efficient error handling
-
-### 5. **Decimal Conversion**
-- Normalizes all values to 6 decimals (USDC standard)
-- Handles ETH (18 decimals) and oracle prices (8 decimals)
-- Accurate conversion functions for ETH to USD
-
-### 6. **Type Declarations**
-- `TokenInfo` struct to manage supported tokens
-- Organized state variables with clear naming conventions
-- Constants for oracle heartbeat and decimal factors
-
-## Contract Architecture
-
-### Inheritance
-```
-KipuBankV2 is Ownable
-```
-- Inherits access control from OpenZeppelin
-
-### Libraries Used
-- **SafeERC20**: Safe token transfer operations
-- **OpenZeppelin Ownable**: Access control
-- **Chainlink AggregatorV3Interface**: Price feed integration
-
-### Constants
-- `ORACLE_HEARTBEAT`: 3600 seconds (1 hour) - maximum staleness for oracle data
-- `DECIMAL_FACTOR`: 1e20 - converts from 26 decimals (18+8) to 6 decimals
-- `NATIVE_TOKEN`: address(0) - represents native ETH
-
-## Features
-
-### For Users
-- Deposit ETH into personal vault
-- Deposit supported ERC-20 tokens
-- Withdraw ETH (with limits)
-- Withdraw ERC-20 tokens
-- View balance in native token or USD equivalent
-
-### For Owner
-- Update bank capacity (in ETH or USD)
-- Add new supported tokens
-- Update Chainlink price feed address
-
-## Contract Variables
-
-### Immutable
-- `i_withdrawalLimit`: Maximum amount that can be withdrawn in a single transaction
-
-### State Variables
-- `s_bankCap`: Maximum total ETH the bank can hold
-- `s_ethUsdFeed`: Chainlink ETH/USD price feed interface
-- `s_balances`: Nested mapping of user balances per token
-- `s_supportedTokens`: Mapping of token addresses to TokenInfo
-- `s_totalDeposits`: Counter for total deposits
-- `s_totalWithdrawals`: Counter for total withdrawals
-- `s_currentTotalBalance`: Current total balance in ETH
-
-## Functions Reference
-
-### User Functions
-
-#### `deposit()`
-Deposit ETH into your vault.
-- **Payable**: Yes
-- **Requirements**: Amount > 0, within bank capacity
-
-#### `depositToken(address _token, uint256 _amount)`
-Deposit ERC-20 tokens into your vault.
-- **Requirements**: Token must be supported, amount > 0
-- **Note**: Must approve contract to spend tokens first
-
-#### `withdraw(uint256 _amount)`
-Withdraw ETH from your vault.
-- **Requirements**: Amount > 0, within withdrawal limit, sufficient balance
-
-#### `withdrawToken(address _token, uint256 _amount)`
-Withdraw ERC-20 tokens from your vault.
-- **Requirements**: Token supported, amount > 0, sufficient balance
-
-### Owner Functions
-
-#### `setBankCap(uint256 _newBankCap)`
-Update bank capacity in ETH.
-
-#### `setBankCapInUSD(uint256 _capInUsd)`
-Update bank capacity based on USD value (automatically converts using oracle).
-
-#### `setEthUsdFeed(address _newFeed)`
-Update the Chainlink price feed address.
-
-#### `addSupportedToken(address _token, string _symbol, uint8 _decimals)`
-Add a new token to the supported list.
-
-### View Functions
-
-#### `getBalance()` / `getBalance(address _token)`
-Get your balance in ETH or specific token.
-
-#### `getUserBalanceInUsd(address _user)`
-Get a user's ETH balance converted to USD.
-
-#### `getBankCapInUsd()`
-Get bank capacity in USD.
-
-#### `getEthUsdPrice()`
-Get current ETH/USD price from Chainlink (8 decimals).
-
-#### `convertEthToUsd(uint256 _ethAmount)`
-Convert any ETH amount to USD (6 decimals).
-
-## Events
-
-- `KipuBank_DepositMade(address indexed user, uint256 amount, uint256 usdValue)`
-- `KipuBank_WithdrawalMade(address indexed user, uint256 amount, uint256 usdValue)`
-- `KipuBank_TokenDeposit(address indexed user, address indexed token, uint256 amount, uint256 usdValue)`
-- `KipuBank_TokenWithdrawal(address indexed user, address indexed token, uint256 amount, uint256 usdValue)`
-- `KipuBank_BankCapUpdated(uint256 newCap, uint256 timestamp)`
-- `KipuBank_EthUsdFeedUpdated(address newFeed)`
-- `KipuBank_TokenAdded(address indexed token, string symbol, uint8 decimals)`
-
-## Custom Errors
-
-- `KipuBank_InvalidAmount()`: Amount is zero
-- `KipuBank_WithdrawalLimitExceeded(uint256 requested, uint256 allowed)`
-- `KipuBank_InsufficientBalance(uint256 available, uint256 requested)`
-- `KipuBank_BankCapacityExceeded(uint256 remainingCapacity)`
-- `KipuBank_TransferFailed(bytes error)`
-- `KipuBank_OracleCompromised()`: Oracle returned invalid price
-- `KipuBank_StalePrice()`: Oracle data is outdated
-- `KipuBank_TokenNotSupported(address token)`
-
-## Deployment Instructions
-
-### Prerequisites
-- Foundry installed (`curl -L https://foundry.paradigm.xyz | bash && foundryup`)
-- Testnet ETH (Sepolia recommended)
-- MetaMask or similar wallet
-
-### Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/kipu-bank.git
-cd kipu-bank
-```
-
-2. Install dependencies:
-```bash
-forge install OpenZeppelin/openzeppelin-contracts --no-commit
-forge install smartcontractkit/chainlink --no-commit
-```
-
-### Deployment Parameters
-
-When deploying KipuBankV2, you need these parameters:
-
-1. `_withdrawalLimit`: Maximum withdrawal per transaction (in wei)
-2. `_bankCap`: Maximum bank capacity (in wei)
-3. `_ethUsdFeed`: Chainlink ETH/USD price feed address for your network
-4. `_owner`: Address that will own the contract
-
-#### Chainlink Price Feed Addresses
-
-**Sepolia Testnet**:
-- ETH/USD: `0x694AA1769357215DE4FAC081bf1f309aDC325306`
-
-**Ethereum Mainnet**:
-- ETH/USD: `0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419`
-
-Find more feeds at: https://docs.chain.link/data-feeds/price-feeds/addresses
-
-### Deployment Script Example
-
-Create `script/DeployKipuBankV2.s.sol`:
-
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
-
-import {Script} from "forge-std/Script.sol";
-import {KipuBankV2} from "../src/KipuBankV2.sol";
-
-contract DeployKipuBankV2 is Script {
-    function run() external returns (KipuBankV2) {
-        uint256 withdrawalLimit = 1 ether;
-        uint256 bankCap = 100 ether;
-        address ethUsdFeed = 0x694AA1769357215DE4FAC081bf1f309aDC325306; // Sepolia
-        address owner = msg.sender;
-
-        vm.startBroadcast();
-        KipuBankV2 kipuBank = new KipuBankV2(
-            withdrawalLimit,
-            bankCap,
-            ethUsdFeed,
-            owner
-        );
-        vm.stopBroadcast();
-
-        return kipuBank;
-    }
-}
-```
-
-Deploy to Sepolia:
-```bash
-forge script script/DeployKipuBankV2.s.sol:DeployKipuBankV2 --rpc-url $SEPOLIA_RPC_URL --private-key $PRIVATE_KEY --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY
-```
-
-## How to Interact
-
-### Depositing ETH
-
-```bash
-cast send <CONTRACT_ADDRESS> "deposit()" --value 0.1ether --private-key $PRIVATE_KEY --rpc-url $RPC_URL
-```
-
-### Depositing ERC-20 Tokens
-
-1. First, approve the contract:
-```bash
-cast send <TOKEN_ADDRESS> "approve(address,uint256)" <CONTRACT_ADDRESS> 1000000 --private-key $PRIVATE_KEY --rpc-url $RPC_URL
-```
-
-2. Then deposit:
-```bash
-cast send <CONTRACT_ADDRESS> "depositToken(address,uint256)" <TOKEN_ADDRESS> 1000000 --private-key $PRIVATE_KEY --rpc-url $RPC_URL
-```
-
-### Withdrawing ETH
-
-```bash
-cast send <CONTRACT_ADDRESS> "withdraw(uint256)" 100000000000000000 --private-key $PRIVATE_KEY --rpc-url $RPC_URL
-```
-
-### Checking Balance
-
-```bash
-cast call <CONTRACT_ADDRESS> "getBalance()" --rpc-url $RPC_URL
-```
-
-### Checking Balance in USD
-
-```bash
-cast call <CONTRACT_ADDRESS> "getUserBalanceInUsd(address)" <YOUR_ADDRESS> --rpc-url $RPC_URL
-```
-
-### Owner Operations
-
-Add supported token:
-```bash
-cast send <CONTRACT_ADDRESS> "addSupportedToken(address,string,uint8)" <TOKEN_ADDRESS> "USDC" 6 --private-key $PRIVATE_KEY --rpc-url $RPC_URL
-```
-
-Update bank cap in USD:
-```bash
-cast send <CONTRACT_ADDRESS> "setBankCapInUSD(uint256)" 100000000000 --private-key $PRIVATE_KEY --rpc-url $RPC_URL
-```
-
-## Design Decisions and Trade-offs
-
-### 1. Using address(0) for Native ETH
-**Decision**: Represent ETH as `address(0)` in the token mappings.
-
-**Reasoning**: Allows unified storage structure for both ETH and ERC-20 tokens without duplicating logic.
-
-**Trade-off**: Slightly less intuitive for developers unfamiliar with this pattern, but it's a common industry practice.
-
-### 2. Normalizing to 6 Decimals
-**Decision**: Convert all USD values to 6 decimals (USDC standard).
-
-**Reasoning**:
-- ETH has 18 decimals
-- Chainlink feeds have 8 decimals
-- USDC (most common stablecoin) has 6 decimals
-- Standardizing to 6 decimals prevents overflow and aligns with DeFi standards
-
-**Trade-off**: Less precision than maintaining 18 decimals, but sufficient for financial applications and reduces overflow risk.
-
-### 3. Ownable vs. AccessControl
-**Decision**: Use OpenZeppelin's `Ownable` instead of `AccessControl`.
-
-**Reasoning**: For this contract, we only need owner/admin functions. `Ownable` is simpler and more gas-efficient.
-
-**Trade-off**: If we later need multiple roles (e.g., admin, treasury, moderator), we'd need to migrate to `AccessControl`.
-
-### 4. Oracle Heartbeat Validation
-**Decision**: Implement 1-hour staleness check for Chainlink data.
-
-**Reasoning**: Prevents using outdated prices that could be exploited.
-
-**Trade-off**: Contract may fail during extreme network congestion if oracle doesn't update within 1 hour. Owner can update feed address if needed.
-
-### 5. Mutable Oracle Address
-**Decision**: Make `s_ethUsdFeed` mutable (not immutable).
-
-**Reasoning**: Chainlink may deprecate or upgrade feeds. Owner can update without redeploying entire contract.
-
-**Trade-off**: Introduces centralization risk if owner is compromised. Mitigated by using a multisig wallet as owner.
-
-### 6. Simplified Token USD Valuation
-**Decision**: Token deposits show 0 USD value in events.
-
-**Reasoning**: Each token would require its own Chainlink oracle, significantly increasing complexity and gas costs.
-
-**Trade-off**: Less informative events for ERC-20 deposits. Future versions could add token-specific oracles as needed.
-
-### 7. SafeERC20 for All Token Operations
-**Decision**: Always use SafeERC20's `safeTransfer` and `safeTransferFrom`.
-
-**Reasoning**: Some ERC-20 tokens don't return boolean values or revert on failure (e.g., USDT). SafeERC20 handles these edge cases.
-
-**Trade-off**: Slightly higher gas costs, but much safer for production use.
-
-## Security Considerations
-
-### Implemented Patterns
-1. **Checks-Effects-Interactions**: All state changes before external calls
-2. **Pull Over Push**: Users withdraw rather than receiving automatic transfers
-3. **Custom Errors**: Gas-efficient error handling
-4. **SafeERC20**: Handles non-standard token implementations
-5. **Oracle Validation**: Checks for stale and compromised price data
-6. **Access Control**: Owner-only functions for critical operations
-
-### Recommendations for Production
-1. **Use a Multisig Wallet as Owner**: Prevents single point of failure
-2. **Gradual Rollout**: Start with low bank cap and increase gradually
-3. **Monitor Oracle Health**: Set up alerts for oracle failures
-4. **Regular Security Audits**: Have code reviewed by professional auditors
-5. **Bug Bounty Program**: Incentivize white-hat hackers to find vulnerabilities
-6. **Comprehensive Testing**: Unit tests, integration tests, and fuzzing
-
-## Testing
-
-Create tests in `test/KipuBankV2.t.sol`:
-
-```bash
-forge test
-```
-
-Run with verbosity:
-```bash
-forge test -vvv
-```
-
-Check coverage:
-```bash
-forge coverage
-```
-
-## Author
-
-**Martin Ignacio Casas**
-
-Ethereum Developer Pack - Module 3 Final Project
-
-## License
-
-This project is licensed under the MIT License.
-
-## Acknowledgments
-
-- OpenZeppelin for secure, audited smart contract libraries
-- Chainlink for decentralized oracle infrastructure
-- EthKipu for comprehensive Solidity education
+**Autor**: Martin Ignacio Casas
 
 ---
 
-**Note**: This contract is for educational purposes and part of a course final project. While it implements production-level patterns, additional testing and auditing would be required before mainnet deployment with real funds.
+## Descripción
+
+KipuBankV3 es un smart contract de banca descentralizada que acepta depósitos en ETH y cualquier token ERC-20 con liquidez en Uniswap V2. Todos los depósitos son automáticamente convertidos a USDC mediante swaps on-chain, y los usuarios mantienen un balance unificado en USDC.
+
+### Versiones Legacy
+
+- **KipuBankV1**: Versión básica con depósitos y retiros de ETH
+- **KipuBankV2**: Añade soporte multi-token y oráculos Chainlink
+- **KipuBankV3**: Versión actual con integración DeFi (Uniswap V2)
+
+---
+
+## Características Principales
+
+### Para Usuarios
+
+✅ **Depósitos Flexibles**
+- Depositar ETH nativo
+- Depositar cualquier token ERC-20 soportado por Uniswap V2
+- Conversión automática a USDC
+
+✅ **Balance Unificado**
+- Todos los depósitos se acreditan en USDC
+- Balance único por usuario
+- Fácil tracking de valor
+
+✅ **Retiros en USDC**
+- Retirar USDC directamente
+- Límites de retiro configurables
+- Transferencias seguras con SafeERC20
+
+### Para el Owner
+
+✅ **Gestión del Banco**
+- Actualizar capacidad máxima (bank cap)
+- Agregar nuevos tokens soportados
+- Control total del contrato
+
+### Seguridad
+
+✅ **Protección contra Slippage**: 1% máximo en todos los swaps
+✅ **Deadline Protection**: 15 minutos para prevenir transacciones stale
+✅ **Checks-Effects-Interactions**: Prevención de reentrancy
+✅ **SafeERC20**: Manejo seguro de tokens no estándar
+✅ **Custom Errors**: Gas-eficientes y descriptivos
+
+---
+
+## Arquitectura Técnica
+
+### Integración con Uniswap V2
+
+```
+Usuario deposita Token X
+    ↓
+Contrato recibe Token X
+    ↓
+Aprueba Uniswap V2 Router
+    ↓
+Swap: Token X → WETH → USDC
+    ↓
+Valida bank cap
+    ↓
+Acredita USDC al balance del usuario
+```
+
+### Smart Contract
+
+```solidity
+contract KipuBankV3 is Ownable {
+    using SafeERC20 for IERC20;
+
+    // Variables inmutables
+    IUniswapV2Router02 public immutable i_uniswapRouter;
+    address public immutable i_usdcAddress;
+    uint256 public immutable i_withdrawalLimit;
+
+    // Estado
+    uint256 public s_bankCap;
+    mapping(address => uint256) public s_balances;
+
+    // Funciones principales
+    function deposit() external payable;
+    function depositToken(address _token, uint256 _amount) external;
+    function withdraw(uint256 _amount) external;
+}
+```
+
+### Tecnologías Utilizadas
+
+- **Solidity 0.8.26**: Lenguaje del contrato
+- **OpenZeppelin**: Librerías auditadas (Ownable, SafeERC20)
+- **Uniswap V2**: DEX para swaps automáticos
+- **Foundry**: Testing y deployment
+
+---
+
+## Instalación
+
+### Requisitos Previos
+
+```bash
+# Instalar Foundry
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+
+# Verificar instalación
+forge --version
+```
+
+### Clonar e Instalar
+
+```bash
+# Clonar repositorio
+git clone https://github.com/tuusuario/kipu-bank.git
+cd kipu-bank
+
+# Instalar dependencias
+forge install
+```
+
+### Configurar Variables de Entorno
+
+```bash
+# Copiar template
+cp .env.example .env
+
+# Editar con tus valores
+nano .env
+```
+
+Configurar en `.env`:
+```bash
+SEPOLIA_RPC_URL=https://rpc.sepolia.org
+PRIVATE_KEY=tu_private_key
+ETHERSCAN_API_KEY=tu_etherscan_api_key
+```
+
+---
+
+## Deployment
+
+### Compilar
+
+```bash
+forge build
+```
+
+### Deploy en Sepolia
+
+```bash
+forge script script/DeployKipuBankV3.s.sol:DeployKipuBankV3 \
+  --rpc-url $SEPOLIA_RPC_URL \
+  --private-key $PRIVATE_KEY \
+  --broadcast \
+  --verify \
+  --etherscan-api-key $ETHERSCAN_API_KEY \
+  -vvvv
+```
+
+### Parámetros de Deployment
+
+El script usa estos valores por defecto:
+
+- **Withdrawal Limit**: 1,000 USDC
+- **Bank Cap**: 100,000 USDC
+- **Owner**: msg.sender (el deployer)
+
+### Direcciones por Red
+
+**Sepolia Testnet**:
+- Uniswap V2 Router: `0xC532a74256D3Db42D0Bf7a0400fEFDbad7694008`
+- USDC: `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238`
+- WETH: `0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14`
+
+**Ethereum Mainnet**:
+- Uniswap V2 Router: `0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D`
+- USDC: `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`
+- WETH: `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2`
+
+---
+
+## Testing
+
+### Ejecutar Tests
+
+```bash
+# Tests básicos
+forge test
+
+# Tests con logs
+forge test -vv
+
+# Tests con traces
+forge test -vvv
+
+# Coverage
+forge coverage
+```
+
+### Tests Incluidos
+
+- ✅ Constructor y validaciones
+- ✅ Depósitos de ETH con swap a USDC
+- ✅ Depósitos de tokens ERC-20
+- ✅ Depósitos directos de USDC (sin swap)
+- ✅ Retiros de USDC
+- ✅ Validación de bank cap
+- ✅ Funciones de owner
+- ✅ Tests de integración multi-usuario
+
+---
+
+## Guía de Uso
+
+### 1. Depositar ETH
+
+```bash
+cast send <CONTRACT_ADDRESS> \
+  "deposit()" \
+  --value 0.1ether \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $SEPOLIA_RPC_URL
+```
+
+El contrato automáticamente:
+1. Recibe 0.1 ETH
+2. Swapea ETH → USDC en Uniswap V2
+3. Acredita USDC a tu balance
+
+### 2. Depositar Tokens ERC-20
+
+**Paso 1: Aprobar el token**
+```bash
+cast send <TOKEN_ADDRESS> \
+  "approve(address,uint256)" \
+  <CONTRACT_ADDRESS> \
+  <AMOUNT> \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $SEPOLIA_RPC_URL
+```
+
+**Paso 2: Depositar**
+```bash
+cast send <CONTRACT_ADDRESS> \
+  "depositToken(address,uint256)" \
+  <TOKEN_ADDRESS> \
+  <AMOUNT> \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $SEPOLIA_RPC_URL
+```
+
+### 3. Consultar Balance
+
+```bash
+cast call <CONTRACT_ADDRESS> \
+  "getBalance()" \
+  --rpc-url $SEPOLIA_RPC_URL \
+  --from <YOUR_ADDRESS>
+```
+
+### 4. Retirar USDC
+
+```bash
+cast send <CONTRACT_ADDRESS> \
+  "withdraw(uint256)" \
+  <AMOUNT_IN_USDC> \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $SEPOLIA_RPC_URL
+```
+
+Nota: El amount debe estar en 6 decimales (USDC). Ejemplo: 100 USDC = `100000000`
+
+### 5. Funciones de Owner
+
+**Actualizar bank cap:**
+```bash
+cast send <CONTRACT_ADDRESS> \
+  "setBankCap(uint256)" \
+  200000000000 \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $SEPOLIA_RPC_URL
+```
+
+**Agregar token soportado:**
+```bash
+cast send <CONTRACT_ADDRESS> \
+  "addSupportedToken(address,string,uint8)" \
+  <TOKEN_ADDRESS> \
+  "SYMBOL" \
+  18 \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $SEPOLIA_RPC_URL
+```
+
+---
+
+## Funciones del Contrato
+
+### Funciones Públicas
+
+#### `deposit()`
+Deposita ETH y recibe USDC en balance.
+- **Payable**: Sí
+- **Validaciones**: amount > 0, bank cap no excedido
+
+#### `depositToken(address _token, uint256 _amount)`
+Deposita token ERC-20 y recibe USDC en balance.
+- **Requisitos**: Token soportado, aprobación previa
+- **Comportamiento**: Si es USDC → acredita directo, sino → swap a USDC
+
+#### `withdraw(uint256 _amount)`
+Retira USDC del balance.
+- **Validaciones**: amount > 0, <= withdrawal limit, balance suficiente
+- **Transfers**: USDC directamente al usuario
+
+### Funciones de Owner
+
+#### `setBankCap(uint256 _newBankCap)`
+Actualiza la capacidad máxima del banco en USDC.
+
+#### `addSupportedToken(address _token, string _symbol, uint8 _decimals)`
+Agrega un nuevo token a la lista de tokens soportados.
+
+### Funciones de Consulta
+
+- `getBalance()`: Balance del caller en USDC
+- `getBalanceOf(address _user)`: Balance de un usuario específico
+- `getWithdrawalLimit()`: Límite de retiro
+- `getBankCap()`: Capacidad máxima
+- `getTotalDeposits()`: Total de depósitos realizados
+- `getTotalWithdrawals()`: Total de retiros realizados
+- `getCurrentTotalBalance()`: Balance total actual en USDC
+
+---
+
+## Eventos
+
+```solidity
+event KipuBank_DepositMade(
+    address indexed user,
+    address indexed tokenIn,
+    uint256 amountIn,
+    uint256 usdcReceived
+);
+
+event KipuBank_WithdrawalMade(
+    address indexed user,
+    uint256 amount
+);
+
+event KipuBank_BankCapUpdated(
+    uint256 newCap,
+    uint256 timestamp
+);
+
+event KipuBank_TokenAdded(
+    address indexed token,
+    string symbol,
+    uint8 decimals
+);
+```
+
+---
+
+## Errores Personalizados
+
+```solidity
+error KipuBank_InvalidAmount();
+error KipuBank_WithdrawalLimitExceeded(uint256 requested, uint256 allowed);
+error KipuBank_InsufficientBalance(uint256 available, uint256 requested);
+error KipuBank_BankCapacityExceeded(uint256 remainingCapacity);
+error KipuBank_TokenNotSupported(address token);
+error KipuBank_SwapFailed();
+error KipuBank_DeadlineExpired();
+error KipuBank_ZeroAddress();
+```
+
+---
+
+## Decisiones de Diseño
+
+### 1. Balance Único en USDC
+
+**Decisión**: Todos los usuarios tienen balance únicamente en USDC (6 decimales).
+
+**Razones**:
+- Simplifica la contabilidad del contrato
+- Bank cap fácil de validar sin oráculos
+- Usuarios conocen el valor exacto de sus fondos
+- Modelo estándar en DeFi (savings account)
+
+### 2. Path de Swap: Token → WETH → USDC
+
+**Decisión**: Usar WETH como token intermediario en swaps.
+
+**Razones**:
+- Mayor liquidez en pares Token/WETH
+- Reduce slippage
+- Path estándar en Uniswap V2
+
+```solidity
+path[0] = tokenIn;
+path[1] = WETH;
+path[2] = USDC;
+```
+
+### 3. Slippage Fijo del 1%
+
+**Decisión**: Tolerancia de slippage fija del 1%.
+
+**Razones**:
+- Balance entre protección y flexibilidad
+- Previene front-running
+- Simple de implementar
+
+**Cálculo**:
+```solidity
+uint256 minAmountOut = (expectedOutput * 9900) / 10000;
+```
+
+### 4. Deadline de 15 Minutos
+
+**Decisión**: Todas las transacciones con deadline de 15 minutos.
+
+**Razones**:
+- Previene ejecución tardía
+- Estándar de la industria
+- Balance entre seguridad y usabilidad
+
+### 5. Uniswap V2 vs V3/V4
+
+**Decisión**: Usar Uniswap V2.
+
+**Razones**:
+- Simplicidad de integración
+- Router único bien documentado
+- Apropiado para nivel educativo del curso
+- Amplia disponibilidad en testnets
+
+---
+
+## Patrones de Seguridad
+
+### Checks-Effects-Interactions (CEI)
+
+```solidity
+function withdraw(uint256 _amount) external {
+    // CHECKS
+    if (_amount > i_withdrawalLimit) revert...
+    if (s_balances[msg.sender] < _amount) revert...
+
+    // EFFECTS
+    s_balances[msg.sender] -= _amount;
+    s_currentTotalBalance -= _amount;
+
+    // INTERACTIONS
+    IERC20(i_usdcAddress).safeTransfer(msg.sender, _amount);
+}
+```
+
+### SafeERC20
+
+Todas las operaciones con tokens usan `SafeERC20` para manejar tokens no estándar:
+
+```solidity
+IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
+IERC20(_token).safeIncreaseAllowance(address(i_uniswapRouter), _amount);
+```
+
+### Protección contra Slippage
+
+```solidity
+uint256[] memory amountsOut = i_uniswapRouter.getAmountsOut(_amountIn, path);
+uint256 expectedUsdcOut = amountsOut[amountsOut.length - 1];
+uint256 minAmountOut = (expectedUsdcOut * 9900) / 10000; // 1% slippage
+```
+
+### Validación de Outputs
+
+```solidity
+if (usdcReceived == 0) revert KipuBank_SwapFailed();
+```
+
+---
+
+## Estructura del Proyecto
+
+```
+kipu-bank/
+├── src/
+│   ├── KipuBankV1.sol          # Versión legacy
+│   ├── KipuBankV2.sol          # Versión legacy
+│   └── KipuBankV3.sol          # Versión actual
+│
+├── test/
+│   └── KipuBankV3.t.sol        # Tests completos
+│
+├── script/
+│   └── DeployKipuBankV3.s.sol  # Script de deployment
+│
+├── lib/                         # Dependencias (Foundry)
+│   ├── openzeppelin-contracts/
+│   ├── v2-core/
+│   ├── v2-periphery/
+│   └── forge-std/
+│
+├── README.md                    # Este archivo
+├── .env.example                 # Template de variables
+├── .gitignore
+└── foundry.toml                 # Configuración Foundry
+```
+
+---
+
+## Mejoras de V3 vs V2
+
+| Aspecto | KipuBankV2 | KipuBankV3 |
+|---------|------------|------------|
+| **Tokens soportados** | ETH, tokens pre-aprobados | Cualquier token con liquidez Uniswap V2 |
+| **Conversión** | Manual por usuario | Automática a USDC |
+| **Balance** | Multi-token (mapping anidado) | Único en USDC |
+| **Bank cap** | En ETH (requiere oracle) | En USDC (sin oracle) |
+| **Integración DeFi** | No | Sí (Uniswap V2) |
+| **Oracle** | Chainlink (ETH/USD) | No necesario |
+| **Complejidad** | Media | Media-Alta |
+
+---
+
+## Recursos
+
+### Documentación Externa
+- [Uniswap V2 Docs](https://docs.uniswap.org/contracts/v2/overview)
+- [OpenZeppelin Contracts](https://docs.openzeppelin.com/contracts/)
+- [Foundry Book](https://book.getfoundry.sh/)
+- [Solidity Docs](https://docs.soliditylang.org/)
+
+### Block Explorers
+- [Sepolia Etherscan](https://sepolia.etherscan.io/)
+- [Ethereum Mainnet Etherscan](https://etherscan.io/)
+
+---
+
+## Licencia
+
+MIT License
+
+---
+
+## Autor
+
+**Martin Ignacio Casas**
+
+---
+
+## Agradecimientos
+
+- EthKipu por el programa educativo
+- OpenZeppelin por contratos auditados
+- Uniswap por el protocolo DEX
+- Foundry por herramientas de desarrollo
+- La comunidad Ethereum
